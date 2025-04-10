@@ -2267,6 +2267,11 @@ void drawSprite()
     spr.setTextDatum(ML_DATUM);
     spr.drawString(time_disp, batt_offset_x - 10, batt_offset_y + 24, 2); // Position below battery icon
     spr.setTextColor(theme[themeIdx].text, theme[themeIdx].bg);
+  } else {
+    spr.setTextColor(theme[themeIdx].text, theme[themeIdx].bg);
+    spr.setTextDatum(ML_DATUM);
+    spr.drawString(time_disp, batt_offset_x - 10, batt_offset_y + 24, 2); // Position below battery icon
+    spr.setTextColor(theme[themeIdx].text, theme[themeIdx].bg);    
   }
 
   /* // Screen activity icon */
