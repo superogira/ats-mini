@@ -3787,6 +3787,22 @@ void webConfig(AsyncWebServerRequest *request) {
       currentBrt = webSetBrightness.toInt();
       ledcWrite(0, currentBrt);
     }
+    if (request->hasParam("changeTheme", true) && request->getParam("changeTheme", true)->value() != "") {
+      String webChangeTheme = request->getParam("changeTheme", true)->value();
+      if (webChangeTheme == "changeTheme") {
+        elapsedSleep = millis();
+        displayOn();
+        doTheme(1);
+      }
+    }
+    if (request->hasParam("setTimeout", true) && request->getParam("setTimeout", true)->value() != "") {
+      String webSetTimeout = request->getParam("setTimeout", true)->value();
+      currentSleep = webSetTimeout.toInt();
+      //display_on = true;
+      elapsedSleep = millis();
+      displayOn();
+      //drawSprite();
+    }
     
     request->send(200, "text/html", ConfigPage());
 }
@@ -4070,11 +4086,17 @@ String ConfigPage(){
   }
   ptr +="\"> <input type='submit' value='Set Time'></form></div><br>";
   
-  ptr +="<br><div id='setBrightness'><form action=\"/config\" method=\"POST\"><label for=\"hours\">LCD Brightness (0-255) : </label><input type=\"number\" min='0' max='255' name=\"setBrightness\" id=\"setbrightness\" size=\"1\" value=\"";
+  ptr +="<br><div id='setBrightness'><form action=\"/config\" method=\"POST\"><label for=\"brightness\">LCD Brightness (0-255) : </label><input type=\"number\" min='0' max='255' name=\"setBrightness\" id=\"setbrightness\" size=\"1\" value=\"";
   ptr +=currentBrt;
   ptr +="\"> <input type='submit' value='Set Brightness'></form></div>";
-  ptr +="***At brightness levels below 100%(255), switching from the PWM may cause power spikes and/or RFI***";
-  ptr +="<br><br><br><br><div><form action=\"/radio\" method=\"POST\"><input type='submit' value='Radio'></form>";
+  ptr +="***At brightness levels below 100%(255), switching from the PWM may cause power spikes and/or RFI***<br><br>";
+
+  ptr +="<div id='setTimeout'><form action=\"/config\" method=\"POST\"><label for=\"timeout\">Display Timeout (0-255) : </label><input type=\"number\" min='0' max='255' name=\"setTimeout\" id=\"settimeout\" size=\"1\" value=\"";
+  ptr +=currentSleep;
+  ptr +="\"> <input type='submit' value='Set Timeout'></form></div><br><br>";
+  ptr +="<div id='changeTheme'><form id='changetheme' method='POST' action=\"/config\"><input type='hidden' name='changeTheme' value='changeTheme'><input type='submit' value='Change Theme'></form></div>";
+  
+  ptr +="<br><br><br><div><form action=\"/radio\" method=\"POST\"><input type='submit' value='Radio'></form>";
   
   ptr +="</div>";
   ptr +="</body>";
