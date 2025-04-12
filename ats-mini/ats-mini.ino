@@ -866,14 +866,6 @@ void setup()
 //  });
 
   server.on("/", HTTP_ANY, [](AsyncWebServerRequest *request){
-    if(!request->authenticate(loginUsername.c_str(), loginPassword.c_str()))
-      return request->requestAuthentication();
-    request->send(200, "text/html", ConfigPage());
-  });
-  
-  server.on("/config", HTTP_ANY, webConfig);
-  server.on("/connectwifi", HTTP_ANY, webConnectWifi);
-  server.on("/radio", HTTP_ANY, [](AsyncWebServerRequest *request){
     RadioPage();
     Serial.printf("My Big answer has %d characters\n", ptr.length());
     AsyncWebServerResponse *response = request->beginChunkedResponse("text/html",
@@ -885,12 +877,19 @@ void setup()
     });
     request->send(response);
   });
-  
-  server.on("/setfrequency", HTTP_ANY, webSetFreq);
-  server.on("/setvolume", HTTP_ANY, webSetVol);
   server.on("/data", HTTP_ANY, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", radio_data().c_str());
   });
+  server.on("/setfrequency", HTTP_ANY, webSetFreq);
+  server.on("/setvolume", HTTP_ANY, webSetVol);
+  
+  server.on("/configpage", HTTP_ANY, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(loginUsername.c_str(), loginPassword.c_str()))
+      return request->requestAuthentication();
+    request->send(200, "text/html", ConfigPage());
+  });
+  server.on("/config", HTTP_ANY, webConfig);
+  server.on("/connectwifi", HTTP_ANY, webConnectWifi);
 
   server.on("/rssi", HTTP_ANY, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", currentRSSI().c_str());
@@ -914,7 +913,6 @@ void setup()
   server.on("/logout", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(401);
   });
-
   server.on("/logged-out", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", logout_html);
   });
@@ -3888,9 +3886,9 @@ void webConnectWifi(AsyncWebServerRequest *request) {
     request->send(200, "text/html", ConfigPage());
 }
 
-void webRadio(AsyncWebServerRequest *respond) {
-  respond->send(200, "text/html", RadioPage());
-}
+//void webRadio(AsyncWebServerRequest *respond) {
+//  respond->send(200, "text/html", RadioPage());
+//}
 
 String bandWidthString;
 
@@ -4106,7 +4104,30 @@ String ConfigPage(){
   ptr +="<br><div id='connectWiFi'><form action=\"/connectwifi\" method=\"POST\"><label for=\"wifissid\">Current WiFi SSID : </label><input type=\"text\" name=\"setWifiSSID\" id=\"setwifissid\" value=\"";
   ptr +=WiFi.SSID();
   ptr +="\"><br><label for=\"wifipassword\">WiFi Password : </label><input type=\"password\" name=\"setWifiPassword\" id=\"setwifipassword\"><br><br><input type='submit' value='Connect WiFi'></form></div>";
-  ptr +="***Only 2.4GHz***";
+  ptr +="***Only 2.4GHz***<br><br>";
+
+  if(WiFi.status() == WL_CONNECTED){
+      ptr +="Access Point Mode - IP : ";
+      ptr +="<a href=\"http://";
+      ptr +=IPa;
+      ptr +="/\">";
+      ptr +=IPa;
+      ptr +="</a>";
+      ptr +="<br>WiFi Connected IP : ";
+      ptr +="<a href=\"http://";
+      ptr +=IPw;
+      ptr +="/\">";
+      ptr +=IPw;
+      ptr +="</a>";
+    } else {
+      ptr +="Access Point Mode - IP : ";
+      ptr +="<a href=\"http://";
+      ptr +=IPa;
+      ptr +="/\">";
+      ptr +=IPa;
+      ptr +="</a>";
+      ptr +="<br>WiFi not connect";
+    }
 
   ptr +="<br><br><div id='setIcecastServerUrl'><form action=\"/config\" method=\"POST\"><label for=\"icecastserverurl\">Icecast Streaming Media Server URL (E.g. http://192.168.1.23:8000/stream.ogg) : </label><input type=\"text\" name=\"setIcecastServerUrl\" id=\"icecastserverurl\" size=\"30\" value=\"";
   ptr +=IcecastServerURL;
@@ -4161,12 +4182,12 @@ String ConfigPage(){
   ptr +="\"> <input type='submit' value='Set Timeout'></form></div><br><br>";
   ptr +="<div id='changeTheme'><form id='changetheme' method='POST' action=\"/config\"><input type='hidden' name='changeTheme' value='changeTheme'><input type='submit' value='Change Theme'></form></div>";
   
-  ptr +="<br><br><div><form action=\"/radio\" method=\"POST\"><input type='submit' value='Radio'></form>";
+  ptr +="<br><br><div><form action=\"/\" method=\"POST\"><input type='submit' value='Radio'></form>";
   ptr +="<br><br><button onclick=\"logoutButton()\">Logout</button>";
   
   ptr +="</div>";
   //ptr +="<script>function logoutButton() {var xhr = new XMLHttpRequest(); xhr.open(\"GET\", \"/logout\", true); xhr.send(); setTimeout(function(){ window.open(\"/logged-out\",\"_self\");}, 1000);}</script>";
-  ptr +="<script>function logoutButton() {var xhr = new XMLHttpRequest(); xhr.open(\"GET\", \"/logout\", true); xhr.send(); setTimeout(function(){ window.open(\"/radio\",\"_self\");}, 1000);}</script>";
+  ptr +="<script>function logoutButton() {var xhr = new XMLHttpRequest(); xhr.open(\"GET\", \"/logout\", true); xhr.send(); setTimeout(function(){ window.open(\"/\",\"_self\");}, 1000);}</script>";
   ptr +="</body>";
   ptr +="</html>";
   return ptr;
@@ -4238,39 +4259,17 @@ String RadioPage(){
   ptr +="<h1>S-METER</h1>";
   ptr +="<div class=\"chart\"><canvas id=\"gauge\"></canvas></div>";
   
-  ptr +="<div class=\"audioplayer\"><audio controls=\"controls\" preload=\"none\"><source src=\"";
+  ptr +="<div class=\"audioplayer\"><audio controls preload=\"auto\"><source src=\"";
   ptr +=IcecastServerURL;
-  ptr +="\" type=\"application/ogg\"></source></audio></div>";
+  ptr +="\" type=\"application/ogg\"></source></audio><br>If cannot play audio. Please reload page and press play again.</div>";
 
   ptr +="<br><FORM id='setfrequency' METHOD='POST' action=''><div id='setFreq'></form></div>";
   ptr +="<FORM id='setbfo' METHOD='POST' action=''><div id='setBFO'></form></div>";
   ptr +="<div id='changeBandwidth'><form id='changebandwidth' method='POST' action=''><label for='Bandwidth'>Current Bandwidth : </label><b><label id='currentbandwidth'></label></b> <input type='hidden' name='changeBandwidth' value='changeBandwidth'><input type='submit' value='Change Bandwidth'></form></div><br>";
   ptr +="<FORM id='setmode' METHOD='POST' action=''><div id='setMode'></form></div>";
-  ptr +="<div id='setVolume'><FORM id='setvolume' METHOD='POST' action=''><label for='Volume'>0 - 63 : </label><input type='number' min='0' max='63' name='setVolume'> <input type='submit' value='Set Volume'></form></div><br>";
+  ptr +="<div id='setVolume'><FORM id='setvolume' METHOD='POST' action=''><label for='Volume'>0 - 63 : </label><input type='number' min='0' max='63' name='setVolume'> <input type='submit' value='Set Volume'></form></div>";
 
-  if(WiFi.status() == WL_CONNECTED){
-      ptr +="Access Point Mode - IP : ";
-      ptr +="<a href=\"http://";
-      ptr +=IPa;
-      ptr +="/radio\">";
-      ptr +=IPa;
-      ptr +="</a>";
-      ptr +="<br>WiFi Connected IP : ";
-      ptr +="<a href=\"http://";
-      ptr +=IPw;
-      ptr +="/radio\">";
-      ptr +=IPw;
-      ptr +="</a>";
-    } else {
-      ptr +="Access Point Mode - IP : ";
-      ptr +="<a href=\"http://";
-      ptr +=IPa;
-      ptr +="/radio\">";
-      ptr +=IPa;
-      ptr +="</a>";
-      ptr +="<br>WiFi not connect";
-    }
-  ptr +="<br><br><form action=\"/\" method=\"POST\" class='inline'><input type='submit' value='Config'></form> <form id='bandswitch' method='POST' action='' class='inline'> <input type='hidden' name='setMode' value='SWITCH'><input type='submit' value='Band Switch'></form> <form id='chart' method='POST' action='./chart' class='inline' target=\"_blank\"> <input type='submit' value='RSSI / SNR Chart'></form>";
+  ptr +="<br><br><form action=\"/configpage\" method=\"POST\" class='inline'><input type='submit' value='Config'></form> <form id='bandswitch' method='POST' action='' class='inline'> <input type='hidden' name='setMode' value='SWITCH'><input type='submit' value='Band Switch'></form> <form id='chart' method='POST' action='./chart' class='inline' target=\"_blank\"> <input type='submit' value='RSSI / SNR Chart'></form>";
 
     //ptr +="<script src=\"https://bernii.github.io/gauge.js/dist/gauge.min.js\"></script>";
   ptr +="<script type=\"text/javascript\">";
