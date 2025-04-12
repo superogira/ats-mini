@@ -3831,6 +3831,8 @@ void webConfig(AsyncWebServerRequest *request) {
     if (request->hasParam("setBrightness", true) && request->getParam("setBrightness", true)->value() != "") {
       String webSetBrightness = request->getParam("setBrightness", true)->value();
       currentBrt = webSetBrightness.toInt();
+      elapsedSleep = millis();
+      displayOn();
       ledcWrite(0, currentBrt);
     }
     if (request->hasParam("changeTheme", true) && request->getParam("changeTheme", true)->value() != "") {
