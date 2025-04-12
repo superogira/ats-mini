@@ -1,4 +1,4 @@
-Try DEMO >>> [Link](http://e25wop.thddns.net:2256/radio)
+Try DEMO >>> [Link](http://e25wop.thddns.net:2256)
 ================================================================================
 [Icecast](https://icecast.org/)
 [AltaCast](http://www.altacast.com/)
