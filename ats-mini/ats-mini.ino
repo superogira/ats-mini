@@ -17,6 +17,7 @@
 
 
 //Timezone Offset in seconds
+String IcecastServerURL;
 int utcOffsetInSeconds = 0;
 String ChartTimeZone;
 String ssid1 = "-";
@@ -27,6 +28,9 @@ String ssid3 = "-";
 String password3 =  "";
 String IPa;
 String IPw;
+
+String loginUsername = "";
+String loginPassword = "";
 
 const char *soft_ap_ssid          = "ATS-Mini";
 const char *soft_ap_password      = NULL; // NULL for no password
@@ -658,7 +662,20 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 int hours = 0;
 int minutes = 0;
 
+
 String ptr;
+
+const char logout_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <p>Logged out or <a href="/">return to homepage</a>.</p>
+  <p><strong>Note:</strong> close all web browser tabs to complete the logout process.</p>
+</body>
+</html>
+)rawliteral";
 
 
 void setup()
@@ -814,9 +831,12 @@ void setup()
       }
     }
   } 
-  
+
+  IcecastServerURL = preferences.getString("icecastserverurl", "");
   utcOffsetInSeconds = preferences.getString("utcoffset", "").toInt();
   ChartTimeZone = preferences.getString("charttimezone", "");
+  loginUsername = preferences.getString("loginusername", "");
+  loginPassword = preferences.getString("loginpassword", "");
   preferences.end();
   
   if(WiFi.status() == WL_CONNECTED){
@@ -841,9 +861,16 @@ void setup()
     ajaxInterval = 2500;
   }
   
+//  server.on("/", HTTP_ANY, [](AsyncWebServerRequest *request){
+//    request->send(200, "text/html", ConfigPage());
+//  });
+
   server.on("/", HTTP_ANY, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(loginUsername.c_str(), loginPassword.c_str()))
+      return request->requestAuthentication();
     request->send(200, "text/html", ConfigPage());
   });
+  
   server.on("/config", HTTP_ANY, webConfig);
   server.on("/connectwifi", HTTP_ANY, webConnectWifi);
   server.on("/radio", HTTP_ANY, [](AsyncWebServerRequest *request){
@@ -884,6 +911,14 @@ void setup()
   server.onNotFound([](AsyncWebServerRequest *request) {
     request->send(404, "text/plain", "Not found");
   });
+  server.on("/logout", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(401);
+  });
+
+  server.on("/logged-out", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", logout_html);
+  });
+  
   server.begin();
   Serial.println("\nHTTP server started\n");
 
@@ -3727,6 +3762,17 @@ void loop() {
 
 
 void webConfig(AsyncWebServerRequest *request) {
+    if (request->hasParam("setUsername", true) && request->getParam("setUsername", true)->value() != "") {
+      String webUsername = request->getParam("setUsername", true)->value();
+      String webPassword = request->getParam("setPassword", true)->value();
+      preferences.begin("configData", false);
+      preferences.putString("loginusername", webUsername); 
+      preferences.putString("loginpassword", webPassword);
+      preferences.end();
+      loginUsername = webUsername;
+      loginPassword = webPassword;
+    }
+    
     if (request->hasParam("setWifiSSID1", true) && request->getParam("setWifiSSID1", true)->value() != "") {
       String webWifiSSID = request->getParam("setWifiSSID1", true)->value();
       String webWifiPassword = request->getParam("setWifiPassword1", true)->value();
@@ -3802,6 +3848,13 @@ void webConfig(AsyncWebServerRequest *request) {
       elapsedSleep = millis();
       displayOn();
       //drawSprite();
+    }
+    if (request->hasParam("setIcecastServerUrl", true) && request->getParam("setIcecastServerUrl", true)->value() != "") {
+      String webIcecastServerUrl = request->getParam("setIcecastServerUrl", true)->value();
+      IcecastServerURL = webIcecastServerUrl;
+      preferences.begin("configData", false);
+      preferences.putString("icecastserverurl", webIcecastServerUrl);
+      preferences.end();
     }
     
     request->send(200, "text/html", ConfigPage());
@@ -4023,6 +4076,12 @@ String ConfigPage(){
   ptr +="<body>";
   ptr +="<h1>ATS-Mini Config</h1>";
   ptr +="<div class='container'>";
+
+  ptr +="<br><form action=\"/config\" method=\"POST\">";
+  ptr +="<div id='setUsername'><label for=\"username\">Username : </label><input type=\"text\" name=\"setUsername\" id=\"setusername\" value=\"";
+  ptr +=loginUsername;
+  ptr +="\"><br><label for=\"password\">Password : </label><input type=\"password\" name=\"setPassword\" id=\"setpassword\"></div><br>";
+  ptr +="<input type='submit' value='Save Username/Password'></form><br>";
   
   ptr +="<br><form action=\"/config\" method=\"POST\">";
   ptr +="<div id='setWifi1'><label for=\"wifissid1\">WiFi SSID 1 : </label><input type=\"text\" name=\"setWifiSSID1\" id=\"setwifissid1\" value=\"";
@@ -4040,12 +4099,16 @@ String ConfigPage(){
   ptr +="<div id='setWifi3'><label for=\"wifissid3\">WiFi SSID 3 : </label><input type=\"text\" name=\"setWifiSSID3\" id=\"setwifissid3\" value=\"";
   ptr +=ssid3;
   ptr +="\"><br><label for=\"wifipassword3\">WiFi Password 3 : </label><input type=\"password\" name=\"setWifiPassword3\" id=\"setwifipassword3\"></div><br>";
-  ptr +="<input type='submit' value='Save WiFi Config'></form><br><br>";
+  ptr +="<input type='submit' value='Save WiFi Config'></form><br>";
 
   ptr +="<br><div id='connectWiFi'><form action=\"/connectwifi\" method=\"POST\"><label for=\"wifissid\">Current WiFi SSID : </label><input type=\"text\" name=\"setWifiSSID\" id=\"setwifissid\" value=\"";
   ptr +=WiFi.SSID();
   ptr +="\"><br><label for=\"wifipassword\">WiFi Password : </label><input type=\"password\" name=\"setWifiPassword\" id=\"setwifipassword\"><br><br><input type='submit' value='Connect WiFi'></form></div>";
   ptr +="***Only 2.4GHz***";
+
+  ptr +="<br><br><div id='setIcecastServerUrl'><form action=\"/config\" method=\"POST\"><label for=\"icecastserverurl\">Icecast Streaming Media Server URL (E.g. http://192.168.1.23:8000/stream.ogg) : </label><input type=\"text\" name=\"setIcecastServerUrl\" id=\"icecastserverurl\" size=\"30\" value=\"";
+  ptr +=IcecastServerURL;
+  ptr +="\"> <input type='submit' value='Set Icecast Server URL'></form></div>";
 
   ptr +="<br><br><div id='setAviationBand'><form action=\"/config\" method=\"POST\"><label for=\"aviationband\">Aviation Band Converter Model : </label><select name=\"setAviationBandConverter\" id=\"models\">";
   if (aviationBandConverter == 100) {
@@ -4096,9 +4159,12 @@ String ConfigPage(){
   ptr +="\"> <input type='submit' value='Set Timeout'></form></div><br><br>";
   ptr +="<div id='changeTheme'><form id='changetheme' method='POST' action=\"/config\"><input type='hidden' name='changeTheme' value='changeTheme'><input type='submit' value='Change Theme'></form></div>";
   
-  ptr +="<br><br><br><div><form action=\"/radio\" method=\"POST\"><input type='submit' value='Radio'></form>";
+  ptr +="<br><br><div><form action=\"/radio\" method=\"POST\"><input type='submit' value='Radio'></form>";
+  ptr +="<br><br><button onclick=\"logoutButton()\">Logout</button>";
   
   ptr +="</div>";
+  //ptr +="<script>function logoutButton() {var xhr = new XMLHttpRequest(); xhr.open(\"GET\", \"/logout\", true); xhr.send(); setTimeout(function(){ window.open(\"/logged-out\",\"_self\");}, 1000);}</script>";
+  ptr +="<script>function logoutButton() {var xhr = new XMLHttpRequest(); xhr.open(\"GET\", \"/logout\", true); xhr.send(); setTimeout(function(){ window.open(\"/radio\",\"_self\");}, 1000);}</script>";
   ptr +="</body>";
   ptr +="</html>";
   return ptr;
@@ -4169,6 +4235,10 @@ String RadioPage(){
   
   ptr +="<h1>S-METER</h1>";
   ptr +="<div class=\"chart\"><canvas id=\"gauge\"></canvas></div>";
+  
+  ptr +="<div class=\"audioplayer\"><audio controls=\"controls\" preload=\"none\"><source src=\"";
+  ptr +=IcecastServerURL;
+  ptr +="\" type=\"application/ogg\"></source></audio></div>";
 
   ptr +="<br><FORM id='setfrequency' METHOD='POST' action=''><div id='setFreq'></form></div>";
   ptr +="<FORM id='setbfo' METHOD='POST' action=''><div id='setBFO'></form></div>";
