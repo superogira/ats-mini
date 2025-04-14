@@ -29,6 +29,8 @@ String password3 =  "";
 String IPa;
 String IPw;
 
+String webLog;
+
 String loginUsername = "";
 String loginPassword = "";
 
@@ -838,7 +840,7 @@ void setup()
   loginUsername = preferences.getString("loginusername", "");
   loginPassword = preferences.getString("loginpassword", "");
   preferences.end();
-  
+
   if(WiFi.status() == WL_CONNECTED){
     Serial.println("\nConnected to the WiFi network " + WiFi.SSID());
     tft.println("Connected ");
@@ -915,6 +917,9 @@ void setup()
   });
   server.on("/logged-out", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", logout_html);
+  });
+  server.on("/weblog", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", webLog);
   });
   
   server.begin();
@@ -3591,11 +3596,13 @@ void loop() {
 
 
   if(WiFi.status() == WL_CONNECTED){
-    timeClient.setTimeOffset(utcOffsetInSeconds);
-    timeClient.update();
-    hours = timeClient.getHours();
-    minutes = timeClient.getMinutes();
-    sprintf(time_disp, "%2.2d:%2.2d", hours, minutes); 
+    if(millis() - millis_last_time > period) {
+      timeClient.setTimeOffset(utcOffsetInSeconds);
+      timeClient.update();
+      hours = timeClient.getHours();
+      minutes = timeClient.getMinutes();
+      sprintf(time_disp, "%2.2d:%2.2d", hours, minutes); 
+    }
   } else {
     // Run clock
     clock_time();    
@@ -3758,6 +3765,18 @@ void loop() {
   delay(5);
 }
 
+String currentDatetime(){
+  timeClient.update();
+  time_t epochTime = timeClient.getEpochTime();
+  struct tm *ptm = gmtime ((time_t *)&epochTime); 
+  int monthDay = ptm->tm_mday;
+  int currentMonth = ptm->tm_mon+1;
+  int currentYear = ptm->tm_year+1900;
+  String formattedTime = timeClient.getFormattedTime();
+  String datetime = String(currentYear) + "-" + String(currentMonth) + "-" + String(monthDay) + " " +  String(formattedTime);
+
+  return datetime;
+}
 
 void webConfig(AsyncWebServerRequest *request) {
     if (request->hasParam("setUsername", true) && request->getParam("setUsername", true)->value() != "") {
@@ -3981,18 +4000,22 @@ void webSetFreq(AsyncWebServerRequest *request) {
       currentBFO = 0;
       updateBFO();
     }
+    
+    webLog = currentDatetime() + " - Frequency changed to - " + webSetFrequency + "\n" + webLog;
   }
   if (request->hasParam("changeBandwidth", true) && request->getParam("changeBandwidth", true)->value() != "") {
     String webChangeBandwidth = request->getParam("changeBandwidth", true)->value();
     if (webChangeBandwidth == "changeBandwidth") {
       doBandwidth(1);
     }
+    webLog = currentDatetime() + " - Bandwidth changed" + "\n" + webLog;
   }
   if (request->hasParam("setBFO", true) && request->getParam("setBFO", true)->value() != "") {
     String webSetBFO = request->getParam("setBFO", true)->value();
     currentFrequency = rx.getFrequency();
     currentBFO = (webSetBFO.toInt());
     updateBFO();
+    webLog = currentDatetime() + " - BFO changed to - " + webSetBFO + "\n" + webLog;
   }
   currentFrequency = rx.getFrequency();
 
@@ -4001,8 +4024,10 @@ void webSetFreq(AsyncWebServerRequest *request) {
     if (webSetMode == "SWITCH") {
       if (currentMode == FM) {
         setBand(-1);
+        webLog = currentDatetime() + " - Band Switched to ALL" + "\n" + webLog;
       } else {
         webSetMode = "FM";
+        webLog = currentDatetime() + " - Band Switched to FM radio" + "\n" + webLog;
       }
     }
     //Serial.println(webSetMode);
@@ -4015,6 +4040,7 @@ void webSetFreq(AsyncWebServerRequest *request) {
         doMode(-1);
       }
       currentMode = USB;
+      webLog = currentDatetime() + " - Mode changed to USB" + "\n" + webLog;
     } else if (webSetMode == "LSB"){
       if (currentMode == AM) {
         doMode(1);
@@ -4022,6 +4048,7 @@ void webSetFreq(AsyncWebServerRequest *request) {
         doMode(-1);
       }
       currentMode = LSB;
+      webLog = currentDatetime() + " - Mode changed to LSB" + "\n" + webLog;
     } else if (webSetMode == "AM"){
       if (currentMode == USB) {
         doMode(1);
@@ -4029,6 +4056,7 @@ void webSetFreq(AsyncWebServerRequest *request) {
         doMode(-1);
       }
       currentMode = AM;
+      webLog = currentDatetime() + " - Mode changed to AM" + "\n" + webLog;
     } else if (webSetMode == "FM"){
       bandIdx = 0;
       currentMode = FM;
@@ -4045,6 +4073,7 @@ void webSetVol(AsyncWebServerRequest *request)
   if (request->hasParam("setVolume", true) && request->getParam("setVolume", true)->value() != "") {
     String webSetVolume = request->getParam("setVolume", true)->value();
     rx.setVolume(webSetVolume.toInt());
+    webLog = currentDatetime() + " - Volume changed to - " + webSetVolume + "\n" + webLog;
   }
   request->send(200);
 }
@@ -4060,6 +4089,8 @@ String currentSNR() {
 }
 
 String ConfigPage(){
+  webLog = currentDatetime() + " - Config page loaded by guest.\n" + webLog;
+  
   String ptr = "<!DOCTYPE html>";
   ptr +="<html>";
   ptr +="<head>";
@@ -4195,6 +4226,8 @@ String ConfigPage(){
 
 
 String RadioPage(){
+  webLog = currentDatetime() + " - Radio page loaded by guest.\n" + webLog;
+  
   ptr = "<!DOCTYPE html>";
   ptr +="<html>";
   ptr +="<head>";
@@ -4271,7 +4304,7 @@ String RadioPage(){
 
   ptr +="<br><br><form action=\"/configpage\" method=\"POST\" class='inline'><input type='submit' value='Config'></form> <form id='bandswitch' method='POST' action='' class='inline'> <input type='hidden' name='setMode' value='SWITCH'><input type='submit' value='Band Switch'></form> <form id='chart' method='POST' action='./chart' class='inline' target=\"_blank\"> <input type='submit' value='RSSI / SNR Chart'></form>";
 
-    //ptr +="<script src=\"https://bernii.github.io/gauge.js/dist/gauge.min.js\"></script>";
+  //ptr +="<script src=\"https://bernii.github.io/gauge.js/dist/gauge.min.js\"></script>";
   ptr +="<script type=\"text/javascript\">";
   ptr +="/* gauge.min.js */(function(){var t,i,e,s,n,o,a,h,r,l,c,p,u,d,g=[].slice,m={}.hasOwnProperty,f=function(t,i){for(var e in i)m.call(i,e)&&(t[e]=i[e]);function s(){this.constructor=t}return s.prototype=i.prototype,t.prototype=new s,t.__super__=i.prototype,t},x=[].indexOf||function(t){for(var i=0,e=this.length;i<e;i++)if(i in this&&this[i]===t)return i;return-1};!function(){var t,i,e,s,n,o,a;for(e=0,n=(a=[\"ms\",\"moz\",\"webkit\",\"o\"]).length;e<n&&(o=a[e],!window.requestAnimationFrame);e++)window.requestAnimationFrame=window[o+\"RequestAnimationFrame\"],window.cancelAnimationFrame=window[o+\"CancelAnimationFrame\"]||window[o+\"CancelRequestAnimationFrame\"];t=null,s=0,i={},window.requestAnimationFrame?window.cancelAnimationFrame||(t=window.requestAnimationFrame,window.requestAnimationFrame=function(e,n){var o;return o=++s,t((function(){if(!i[o])return e()}),n),o},window.cancelAnimationFrame=function(t){return i[t]=!0}):";  ptr +="(window.requestAnimationFrame=function(t,i){var e,s,n,o;return e=(new Date).getTime(),o=Math.max(0,16-(e-n)),s=window.setTimeout((function(){return t(e+o)}),o),n=e+o,s},window.cancelAnimationFrame=function(t){return clearTimeout(t)})}(),d=function(t){var i,e;for(t-=3600*(i=Math.floor(t/3600))+60*(e=Math.floor((t-3600*i)/60)),t+=\"\",e+=\"\";e.length<2;)e=\"0\"+e;for(;t.length<2;)t=\"0\"+t;return(i=i?i+\":\":\"\")+e+\":\"+t},p=function(){var t,i,e;return e=(i=1<=arguments.length?g.call(arguments,0):[])[0],t=i[1],l(e.toFixed(t))},";
   ptr +="u=function(t,i){var e,s,n;for(e in s={},t)m.call(t,e)&&(n=t[e],s[e]=n);for(e in i)m.call(i,e)&&(n=i[e],s[e]=n);return s},l=function(t){var i,e,s,n;for(s=(e=(t+=\"\").split(\".\"))[0],n=\"\",e.length>1&&(n=\".\"+e[1]),i=/(\\d+)(\\d{3})/;i.test(s);)s=s.replace(i,\"$1,$2\");return s+n},c=function(t){return\"#\"===t.charAt(0)?t.substring(1,7):t},s=function(t){function i(){return i.__super__.constructor.apply(this,arguments)}return f(i,t),i.prototype.displayScale=1,i.prototype.forceUpdate=!0,i.prototype.setTextField=function(t,i){return this.textField=t instanceof h?t:new h(t,i)},i.prototype.setMinValue=function(t,i){var e,s,n,o,a;if(this.minValue=t,null==i&&(i=!0),i){for(this.displayedValue=this.minValue,a=[],s=0,n=(o=this.gp||[]).length;s<n;s++)e=o[s],a.push(e.displayedValue=this.minValue);return a}},i.prototype.setOptions=function(t){return null==t&&(t=null),this.options=u(this.options,t),";  ptr +="this.textField&&(this.textField.el.style.fontSize=t.fontSize+\"px\"),this.options.angle>.5&&(this.options.angle=.5),this.configDisplayScale(),this},i.prototype.configDisplayScale=function(){var t,i,e,s,n;return s=this.displayScale,!1===this.options.highDpiSupport?delete this.displayScale:(i=window.devicePixelRatio||1,t=this.ctx.webkitBackingStorePixelRatio||this.ctx.mozBackingStorePixelRatio||this.ctx.msBackingStorePixelRatio||this.ctx.oBackingStorePixelRatio||this.ctx.backingStorePixelRatio||1,this.displayScale=i/t),this.displayScale!==s&&";
@@ -4334,6 +4367,8 @@ String RadioPage(){
 }
 
 String ChartPage(){
+  webLog = currentDatetime() + " - Chart page loaded by guest.\n" + webLog;
+  
   ptr = "<!DOCTYPE html>";
   ptr +="<html><head><title>ATS-Mini - RSSI / SNR Chart</title><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
   ptr +="<style>html {font-family: Arial, Helvetica, sans-serif;display: inline-block;text-align: center;}h1 {font-size: 1.7rem;color: white;}p {font-size: 1.3rem;}.topnav {overflow: hidden;background-color: #0A1128;}body {margin: 0;}.content {padding: 0.5%;}.card-grid {/* max-width: 1200px; */margin: 0 auto;display: grid;grid-gap: 2rem;grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));}.card {background-color: white;box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);}.card-title {font-size: 1.1rem;font-weight: bold;color: #034078}.chart-container {padding-right: 0.1%;padding-left: 0.1%;}</style>";
