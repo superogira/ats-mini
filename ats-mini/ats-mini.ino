@@ -918,8 +918,9 @@ void setup()
   server.on("/logged-out", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", logout_html);
   });
-  server.on("/weblog", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/weblog", HTTP_ANY, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", webLog);
+    webLog = currentDatetime() + " - Web log page loaded by guest.\n" + webLog;
   });
   
   server.begin();
@@ -4302,7 +4303,7 @@ String RadioPage(){
   ptr +="<FORM id='setmode' METHOD='POST' action=''><div id='setMode'></form></div>";
   ptr +="<div id='setVolume'><FORM id='setvolume' METHOD='POST' action=''><label for='Volume'>0 - 63 : </label><input type='number' min='0' max='63' name='setVolume'> <input type='submit' value='Set Volume'></form></div>";
 
-  ptr +="<br><br><form action=\"/configpage\" method=\"POST\" class='inline'><input type='submit' value='Config'></form> <form id='bandswitch' method='POST' action='' class='inline'> <input type='hidden' name='setMode' value='SWITCH'><input type='submit' value='Band Switch'></form> <form id='chart' method='POST' action='./chart' class='inline' target=\"_blank\"> <input type='submit' value='RSSI / SNR Chart'></form>";
+  ptr +="<br><br><form action=\"/configpage\" method=\"GET\" class='inline'><input type='submit' value='Config'></form> <form id='bandswitch' method='POST' action='' class='inline'> <input type='hidden' name='setMode' value='SWITCH'><input type='submit' value='Band Switch'></form> <form id='chart' method='GET' action='./chart' class='inline' target=\"_blank\"> <input type='submit' value='RSSI / SNR Chart'></form> <form id='chart' method='GET' action='./weblog' class='inline' target=\"_blank\"> <input type='submit' value='Web Log'></form>";
 
   //ptr +="<script src=\"https://bernii.github.io/gauge.js/dist/gauge.min.js\"></script>";
   ptr +="<script type=\"text/javascript\">";
